@@ -7,7 +7,26 @@ const SPREADSHEET_ID = "1VCVp08S3Pk4Iq1k8tk9ZBH6oDDsTv9thMhhLSpO4Jj8";
 const SS = SpreadsheetApp.openById(SPREADSHEET_ID);
 const SHEET_INVOICES = SS.getSheetByName("invoices");
 const SHEET_PAYMENTS = SS.getSheetByName("payments");
-const FOLDER_ID = ""; 
+const FOLDER_ID = ""; // Opsional: Masukkan ID Folder Drive jika ingin simpan di folder tertentu
+
+/**
+ * LANGKAH UNTUK MEMPERBAIKI ERROR IZIN (AUTHORIZATION):
+ * 1. Simpan (Ctrl+S) kode ini di editor Google Apps Script.
+ * 2. Di toolbar atas (dekat tombol 'Jalankan'), pilih fungsi 'triggerAuthorization'.
+ * 3. Klik tombol 'Jalankan' (Run).
+ * 4. Akan muncul popup "Izin diperlukan", klik 'Tinjau Izin'.
+ * 5. Pilih akun Google Anda.
+ * 6. Jika muncul "Aplikasi tidak diverifikasi", klik 'Lanjutan' (Advanced) -> 'Buka App-Faktur (tidak aman)'.
+ * 7. Klik 'Izinkan' (Allow).
+ * 8. Setelah sukses, Deploy ulang: Klik 'Terapkan' (Deploy) -> 'Kelola Penerapan' -> Edit -> Versi Baru -> Terapkan.
+ */
+function triggerAuthorization() {
+  // Fungsi ini dipanggil manual sekali saja untuk memicu popup izin
+  const folder = DriveApp.getRootFolder();
+  const dummyFile = folder.createFile("temp.txt", "Pemberian izin sukses");
+  dummyFile.setTrashed(true); // Hapus file dummy setelah dibuat
+  console.log("Izin Drive (Simpan File) berhasil diberikan!");
+}
 
 function doGet(e) {
   const action = e.parameter.action;
