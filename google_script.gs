@@ -1,11 +1,13 @@
 /**
- * Google Apps Script for App-Faktur (Final Stable Version)
+ * Google Apps Script for App-Faktur (HARD-CODED ID VERSION)
+ * Ganti SPREADSHEET_ID dengan ID Spreadsheet Anda
  */
 
-const SS = SpreadsheetApp.getActiveSpreadsheet();
+const SPREADSHEET_ID = "1VCVp08S3Pk4Iq1k8tk9ZBH6oDDsTv9thMhhLSpO4Jj8";
+const SS = SpreadsheetApp.openById(SPREADSHEET_ID);
 const SHEET_INVOICES = SS.getSheetByName("invoices");
 const SHEET_PAYMENTS = SS.getSheetByName("payments");
-const FOLDER_ID = ""; // Masukkan ID Folder jika ingin simpan di folder tertentu
+const FOLDER_ID = ""; 
 
 function doGet(e) {
   const action = e.parameter.action;
@@ -20,37 +22,35 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     let fileUrl = "No Image";
 
-    // 1. Upload Gambar jika ada data Base64
-    if (data.image_base64 && data.image_base64.length > 0) {
+    if (data.image_base64 && data.image_base64.length > 100) {
       try {
         fileUrl = uploadToDrive(data.image_base64, data.image_name || "bukti_bayar.jpg");
       } catch (uploadError) {
         fileUrl = "Upload Error: " + uploadError.toString();
-        console.error(uploadError);
       }
     }
     
-    // 2. Pastikan Baris Header ada
-    ensureHeaders();
+    // Pastikan Sheet ada
+    if (!SHEET_PAYMENTS) return createResponse({ error: "Sheet 'payments' tidak ditemukan!" });
 
-    // 3. Simpan Transaksi (7 kolom: A - G)
     const row = [
       data.no_faktur || "Empty",
       data.tanggal_bayar ? new Date(data.tanggal_bayar) : new Date(),
       data.tipe || "N/A",
       data.nominal_bayar || 0,
       data.keterangan_bank || "",
-      new Date(), // F: time
-      fileUrl     // G: bukti_bayar_url
+      new Date(), 
+      fileUrl     
     ];
     
     SHEET_PAYMENTS.appendRow(row);
     
+    // Return lebih banyak info untuk debugging di console browser
     return createResponse({ 
       success: true, 
-      url: fileUrl, 
-      received_image: !!data.image_base64,
-      image_length: data.image_base64 ? data.image_base64.length : 0
+      msg: "Data berhasil masuk ke Spreadsheet ID: " + SPREADSHEET_ID,
+      url: fileUrl,
+      row_added: SHEET_PAYMENTS.getLastRow()
     });
   } catch (err) {
     return createResponse({ error: "doPost Error: " + err.toString() });
@@ -58,32 +58,16 @@ function doPost(e) {
 }
 
 function uploadToDrive(base64Data, fileName) {
-  // Parsing base64
   const parts = base64Data.split(',');
-  if (parts.length < 2) throw new Error("Format gambar tidak valid");
-  
   const contentType = parts[0].split(':')[1].split(';')[0];
   const content = parts[1];
   const blob = Utilities.newBlob(Utilities.base64Decode(content), contentType, fileName);
   
-  let folder;
-  try {
-    folder = FOLDER_ID ? DriveApp.getFolderById(FOLDER_ID) : DriveApp.getRootFolder();
-  } catch (fError) {
-    folder = DriveApp.getRootFolder();
-  }
-  
+  const folder = FOLDER_ID ? DriveApp.getFolderById(FOLDER_ID) : DriveApp.getRootFolder();
   const file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   
   return file.getUrl();
-}
-
-function ensureHeaders() {
-  const headers = ["no_faktur", "tanggal_bayar", "tipe", "nominal_bayar", "keterangan_bank", "time", "bukti_bayar_url"];
-  if (SHEET_PAYMENTS.getLastRow() === 0) {
-    SHEET_PAYMENTS.getRange(1, 1, 1, headers.length).setValues([headers]);
-  }
 }
 
 function getInvoiceSummary() {
@@ -135,7 +119,7 @@ function getTrend7Days() {
 function getSheetData(sheet) {
   if (!sheet) return [];
   const rows = sheet.getDataRange().getValues();
-  if (rows.length < 1) return [];
+  if (rows.length < 2) return [];
   const headers = rows[0];
   return rows.slice(1).filter(row => row.join("").length > 0).map(row => {
     let obj = {};
