@@ -18,11 +18,14 @@ export const initPaymentForm = async () => {
     let activeInvoices = [];
 
     // Load active invoices from Google Sheets
-    try {
-        activeInvoices = await dataService.getActiveInvoices();
-    } catch (error) {
-        console.error("Payment init error:", error);
-    }
+    const loadInvoices = async () => {
+        try {
+            activeInvoices = await dataService.getActiveInvoices();
+        } catch (error) {
+            console.error("Payment init error:", error);
+        }
+    };
+    loadInvoices();
 
     const renderDropdown = (filter = "") => {
         const query = filter.toLowerCase();
@@ -71,18 +74,48 @@ export const initPaymentForm = async () => {
         }, 200);
     };
 
+    // Helper: Compress Image
+    const compressImage = async (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; // Resize to max 800px width
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    // Compress to JPEG with 0.6 quality
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                    resolve(dataUrl);
+                };
+            };
+        });
+    };
+
     // File selection logic
-    fileInput.addEventListener('change', (e) => {
+    fileInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         fileName = file.name;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            base64Image = event.target.result;
+        filePreview.innerHTML = `<span>⏳ Mengompres gambar...</span>`;
+
+        try {
+            base64Image = await compressImage(file);
             filePreview.innerHTML = `<img src="${base64Image}" alt="Preview">`;
-        };
-        reader.readAsDataURL(file);
+            console.log("Image compressed. Size: ", (base64Image.length / 1024).toFixed(2), "KB");
+        } catch (err) {
+            console.error("Compression failed:", err);
+            filePreview.innerHTML = `<span>❌ Gagal memproses gambar</span>`;
+        }
     });
 
     const resetForm = () => {
@@ -127,26 +160,28 @@ export const initPaymentForm = async () => {
             return;
         }
 
+        const btn = form.querySelector('button[type="submit"]');
+        const originalBtnText = btn.innerHTML;
+
         try {
-            const btn = form.querySelector('button[type="submit"]');
-            const originalBtnText = btn.innerHTML;
-            btn.innerHTML = "Sedang Menyimpan...";
+            btn.innerHTML = "Sedang Mengirim Data...";
             btn.disabled = true;
 
-            await dataService.submitPayment(payload);
+            const result = await dataService.submitPayment(payload);
+            console.log("Upload Result:", result);
 
-            alert("Pembayaran dan bukti foto berhasil disimpan!");
+            alert("Pembayaran berhasil disimpan!" + (result.url && result.url !== "No Image" ? "\nFoto bukti berhasil diunggah." : ""));
             resetForm();
 
             // Refresh local data
-            activeInvoices = await dataService.getActiveInvoices();
+            await loadInvoices();
 
+        } catch (error) {
+            console.error("Submit error:", error);
+            alert(`Gagal: ${error.message}`);
+        } finally {
             btn.innerHTML = originalBtnText;
             btn.disabled = false;
-        } catch (error) {
-            alert(`Gagal: ${error.message}`);
-            form.querySelector('button[type="submit"]').disabled = false;
-            form.querySelector('button[type="submit"]').innerHTML = '<i data-lucide="save"></i> Simpan Pembayaran';
             if (window.lucide) lucide.createIcons();
         }
     });

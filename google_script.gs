@@ -1,11 +1,11 @@
 /**
- * Google Apps Script for App-Faktur (Updated with Debugging and Column Safety)
+ * Google Apps Script for App-Faktur (Final Stable Version)
  */
 
 const SS = SpreadsheetApp.getActiveSpreadsheet();
 const SHEET_INVOICES = SS.getSheetByName("invoices");
 const SHEET_PAYMENTS = SS.getSheetByName("payments");
-const FOLDER_ID = ""; // Opsional: Masukkan ID Folder Drive jika ingin simpan di folder tertentu
+const FOLDER_ID = ""; // Masukkan ID Folder jika ingin simpan di folder tertentu
 
 function doGet(e) {
   const action = e.parameter.action;
@@ -20,50 +20,56 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     let fileUrl = "No Image";
 
-    // 1. Upload Gambar jika ada
-    if (data.image_base64 && data.image_name) {
+    // 1. Upload Gambar jika ada data Base64
+    if (data.image_base64 && data.image_base64.length > 0) {
       try {
-        fileUrl = uploadToDrive(data.image_base64, data.image_name);
+        fileUrl = uploadToDrive(data.image_base64, data.image_name || "bukti_bayar.jpg");
       } catch (uploadError) {
-        console.error("Upload error: " + uploadError);
-        fileUrl = "Error: " + uploadError.toString();
+        fileUrl = "Upload Error: " + uploadError.toString();
+        console.error(uploadError);
       }
     }
     
-    // 2. Pastikan Baris Header ada (untuk keamanan kolom)
+    // 2. Pastikan Baris Header ada
     ensureHeaders();
 
-    // 3. Simpan Transaksi
+    // 3. Simpan Transaksi (7 kolom: A - G)
     const row = [
-      data.no_faktur || "Unknown",
+      data.no_faktur || "Empty",
       data.tanggal_bayar ? new Date(data.tanggal_bayar) : new Date(),
-      data.tipe || "Unknown",
+      data.tipe || "N/A",
       data.nominal_bayar || 0,
       data.keterangan_bank || "",
-      new Date(), // time
-      fileUrl     // bukti_bayar_url
+      new Date(), // F: time
+      fileUrl     // G: bukti_bayar_url
     ];
     
     SHEET_PAYMENTS.appendRow(row);
     
-    return createResponse({ success: true, url: fileUrl });
+    return createResponse({ 
+      success: true, 
+      url: fileUrl, 
+      received_image: !!data.image_base64,
+      image_length: data.image_base64 ? data.image_base64.length : 0
+    });
   } catch (err) {
-    console.error("Critical error: " + err);
-    return createResponse({ error: "Server Error: " + err.toString() });
+    return createResponse({ error: "doPost Error: " + err.toString() });
   }
 }
 
 function uploadToDrive(base64Data, fileName) {
-  // Format base64: "data:image/jpeg;base64,..."
+  // Parsing base64
   const parts = base64Data.split(',');
+  if (parts.length < 2) throw new Error("Format gambar tidak valid");
+  
   const contentType = parts[0].split(':')[1].split(';')[0];
   const content = parts[1];
   const blob = Utilities.newBlob(Utilities.base64Decode(content), contentType, fileName);
   
   let folder;
-  if (FOLDER_ID) {
-    folder = DriveApp.getFolderById(FOLDER_ID);
-  } else {
+  try {
+    folder = FOLDER_ID ? DriveApp.getFolderById(FOLDER_ID) : DriveApp.getRootFolder();
+  } catch (fError) {
     folder = DriveApp.getRootFolder();
   }
   
@@ -80,16 +86,13 @@ function ensureHeaders() {
   }
 }
 
-// ... (getInvoiceSummary, getDashboardStats, getTrend7Days tetap sama seperti sebelumnya) ...
-// Sertakan fungsi getSheetData dan createResponse di bawah
-
 function getInvoiceSummary() {
   const invoices = getSheetData(SHEET_INVOICES);
   const payments = getSheetData(SHEET_PAYMENTS);
   
   return invoices.map(inv => {
     const terbayar = payments
-      .filter(p => String(p.no_faktur) === String(inv.no_faktur))
+      .filter(p => String(p.no_faktur).trim() === String(inv.no_faktur).trim())
       .reduce((sum, p) => sum + Number(p.nominal_bayar || 0), 0);
     
     return {
@@ -134,7 +137,7 @@ function getSheetData(sheet) {
   const rows = sheet.getDataRange().getValues();
   if (rows.length < 1) return [];
   const headers = rows[0];
-  return rows.slice(1).map(row => {
+  return rows.slice(1).filter(row => row.join("").length > 0).map(row => {
     let obj = {};
     headers.forEach((h, i) => obj[h] = row[i]);
     return obj;
