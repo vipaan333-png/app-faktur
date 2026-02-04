@@ -155,8 +155,18 @@
                         <small id="sisa-info" class="text-muted"></small>
                     </div>
                     <div class="form-group">
-                        <label>Keterangan / Bank</label>
+                        <label>Keterangan / Bank (Opsional)</label>
                         <input type="text" id="payment-note" placeholder="Contoh: BCA 12345...">
+                    </div>
+                    <div class="form-group">
+                        <label>Lampirkan Foto Bukti (Opsional)</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="payment-file" accept="image/*" class="file-input">
+                            <div class="file-preview-container" id="file-preview">
+                                <i data-lucide="image"></i>
+                                <span>Pilih Foto Bukti</span>
+                            </div>
+                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-block">
                         <i data-lucide="save"></i> Simpan Pembayaran

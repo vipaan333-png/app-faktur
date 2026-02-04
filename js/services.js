@@ -32,6 +32,7 @@ export const dataService = {
             throw new Error(`Nominal melebihi sisa (Sisa: ${invoice.sisa})`);
         }
 
+        // POST includes payment data + image_base64 and image_name if provided
         const response = await fetch(CONFIG.GAS_URL, {
             method: 'POST',
             body: JSON.stringify(payment)
@@ -44,7 +45,7 @@ export const dataService = {
 
     async getActiveInvoices() {
         const all = await this.getInvoices();
-        return all.filter(i => i.sisa > 0);
+        return all.filter(i => (i.sisa || 0) > 0);
     }
 };
 

@@ -9,6 +9,12 @@ export const initPaymentForm = async () => {
     const dropdownContainer = document.querySelector('.dropdown-container');
     const sisaInfo = document.getElementById('sisa-info');
 
+    // Image handling elements
+    const fileInput = document.getElementById('payment-file');
+    const filePreview = document.getElementById('file-preview');
+    let base64Image = "";
+    let fileName = "";
+
     let activeInvoices = [];
 
     // Load active invoices from Google Sheets
@@ -42,7 +48,6 @@ export const initPaymentForm = async () => {
             `;
 
             div.addEventListener('click', () => {
-                // Set visible value and hidden select value
                 searchInput.value = `${inv.no_faktur}`;
                 hiddenSelect.value = inv.no_faktur;
                 sisaInfo.textContent = `Sisa Tagihan: ${formatIDR(inv.sisa)} (Outlet: ${inv.nama_outlet})`;
@@ -60,11 +65,34 @@ export const initPaymentForm = async () => {
     };
 
     const closeDropdown = () => {
-        // Use a small timeout to allow the 'click' event on the item to fire
         setTimeout(() => {
             dropdownList.classList.remove('show');
             dropdownContainer.classList.remove('active');
         }, 200);
+    };
+
+    // File selection logic
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        fileName = file.name;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            base64Image = event.target.result;
+            filePreview.innerHTML = `<img src="${base64Image}" alt="Preview">`;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    const resetForm = () => {
+        form.reset();
+        hiddenSelect.value = '';
+        base64Image = '';
+        fileName = '';
+        sisaInfo.textContent = '';
+        filePreview.innerHTML = `<i data-lucide="image"></i><span>Pilih Foto Bukti</span>`;
+        if (window.lucide) lucide.createIcons();
     };
 
     // Event Listeners
@@ -74,22 +102,6 @@ export const initPaymentForm = async () => {
         renderDropdown(e.target.value);
     });
 
-    // Toggle dropdown on arrow icon click (optional enhancement)
-    const arrow = document.querySelector('.dropdown-icon');
-    if (arrow) {
-        arrow.style.pointerEvents = 'auto';
-        arrow.style.cursor = 'pointer';
-        arrow.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (dropdownList.classList.contains('show')) {
-                closeDropdown();
-            } else {
-                openDropdown();
-            }
-        });
-    }
-
-    // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
         if (!dropdownContainer.contains(e.target)) {
             closeDropdown();
@@ -105,7 +117,9 @@ export const initPaymentForm = async () => {
             tanggal_bayar: document.getElementById('payment-date').value,
             tipe: document.getElementById('payment-type').value,
             nominal_bayar: parseFloat(document.getElementById('payment-amount').value),
-            keterangan_bank: document.getElementById('payment-note').value
+            keterangan_bank: document.getElementById('payment-note').value,
+            image_base64: base64Image,
+            image_name: fileName
         };
 
         if (!payload.no_faktur) {
@@ -114,15 +128,26 @@ export const initPaymentForm = async () => {
         }
 
         try {
+            const btn = form.querySelector('button[type="submit"]');
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = "Sedang Menyimpan...";
+            btn.disabled = true;
+
             await dataService.submitPayment(payload);
-            alert("Pembayaran berhasil disimpan!");
-            form.reset();
-            hiddenSelect.value = '';
-            sisaInfo.textContent = '';
-            // Refresh data from source
+
+            alert("Pembayaran dan bukti foto berhasil disimpan!");
+            resetForm();
+
+            // Refresh local data
             activeInvoices = await dataService.getActiveInvoices();
+
+            btn.innerHTML = originalBtnText;
+            btn.disabled = false;
         } catch (error) {
             alert(`Gagal: ${error.message}`);
+            form.querySelector('button[type="submit"]').disabled = false;
+            form.querySelector('button[type="submit"]').innerHTML = '<i data-lucide="save"></i> Simpan Pembayaran';
+            if (window.lucide) lucide.createIcons();
         }
     });
 };
