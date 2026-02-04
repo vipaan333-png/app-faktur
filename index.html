@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App-Faktur | Invoice Management</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase JS is removed to use Google Sheets -->
+</head>
+
+<body class="bg-dark">
+    <!-- Top Progress Bar -->
+    <div id="loading-bar"></div>
+
+    <!-- Sidebar / Bottom Nav (Responsive) -->
+    <nav class="sidebar">
+        <div class="logo">
+            <i data-lucide="zap" class="text-primary"></i>
+            <span>App-Faktur</span>
+        </div>
+        <ul class="nav-links">
+            <li class="active" data-page="dashboard">
+                <i data-lucide="layout-dashboard"></i>
+                <span>Dashboard</span>
+            </li>
+            <li data-page="list">
+                <i data-lucide="file-text"></i>
+                <span>List Faktur</span>
+            </li>
+            <li data-page="payment">
+                <i data-lucide="credit-card"></i>
+                <span>Pembayaran</span>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="app">
+        <!-- Dashboard Page -->
+        <section id="page-dashboard" class="page-section active">
+            <header>
+                <h1>Ringkasan Penagihan</h1>
+                <p class="subtitle">Overview performa piutang hari ini</p>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="card-icon cyan"><i data-lucide="wallet"></i></div>
+                    <div class="card-info">
+                        <h3>Total Piutang</h3>
+                        <p id="stat-total-piutang" class="value">Rp 0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="card-icon green"><i data-lucide="banknote"></i></div>
+                    <div class="card-info">
+                        <h3>Tunai Hari Ini</h3>
+                        <p id="stat-tunai-today" class="value">Rp 0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="card-icon blue"><i data-lucide="arrow-right-left"></i></div>
+                    <div class="card-info">
+                        <h3>Transfer Hari Ini</h3>
+                        <p id="stat-transfer-today" class="value">Rp 0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </section>
+
+        <!-- List Faktur Page -->
+        <section id="page-list" class="page-section">
+            <header>
+                <div class="header-flex">
+                    <h1>List Faktur</h1>
+                    <button class="btn btn-primary" id="btn-export">
+                        <i data-lucide="download"></i> Export
+                    </button>
+                </div>
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="invoice-search" placeholder="Cari Nama Outlet atau No Faktur...">
+                </div>
+            </header>
+
+            <div class="table-card">
+                <table id="invoice-table">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>No Faktur</th>
+                            <th>Outlet</th>
+                            <th>Nilai</th>
+                            <th>Terbayar</th>
+                            <th>Sisa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoice-list-body">
+                        <!-- Data will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Payment Form Page -->
+        <section id="page-payment" class="page-section">
+            <header>
+                <h1>Input Pembayaran</h1>
+                <p class="subtitle">Catat setoran tunai atau transfer</p>
+            </header>
+
+            <div class="form-card">
+                <form id="payment-form">
+                    <div class="form-group dropdown-container">
+                        <label>No Faktur</label>
+                        <div class="search-input-wrapper">
+                            <input type="text" id="invoice-search-input" placeholder="Cari No Faktur atau Outlet..."
+                                autocomplete="off" required>
+                            <i data-lucide="chevron-down" class="dropdown-icon"></i>
+                        </div>
+                        <div id="invoice-dropdown-list" class="custom-dropdown-list">
+                            <!-- Suggestions injected via JS -->
+                        </div>
+                        <input type="hidden" id="select-invoice" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tanggal Bayar</label>
+                            <input type="date" id="payment-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Tipe Pembayaran</label>
+                            <select id="payment-type" required>
+                                <option value="Tunai">Tunai</option>
+                                <option value="Transfer">Transfer</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Nominal Bayar</label>
+                        <input type="number" id="payment-amount" placeholder="0" required>
+                        <small id="sisa-info" class="text-muted"></small>
+                    </div>
+                    <div class="form-group">
+                        <label>Keterangan / Bank</label>
+                        <input type="text" id="payment-note" placeholder="Contoh: BCA 12345...">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i data-lucide="save"></i> Simpan Pembayaran
+                    </button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <!-- Scripts -->
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
