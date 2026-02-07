@@ -16,6 +16,7 @@ export const initPaymentForm = async () => {
     let fileName = "";
 
     let activeInvoices = [];
+    let isSubmitting = false; // Prevent double submit (double-click / slow network)
 
     // Load active invoices from Google Sheets
     const loadInvoices = async () => {
@@ -145,6 +146,14 @@ export const initPaymentForm = async () => {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        if (isSubmitting) return; // Block second click / double submit
+        isSubmitting = true;
+
+        const btn = form.querySelector('button[type="submit"]');
+        const originalBtnText = btn.innerHTML;
+        btn.innerHTML = "Sedang Mengirim Data...";
+        btn.disabled = true;
+
         const payload = {
             no_faktur: hiddenSelect.value,
             tanggal_bayar: document.getElementById('payment-date').value,
@@ -157,16 +166,14 @@ export const initPaymentForm = async () => {
 
         if (!payload.no_faktur) {
             alert("Silakan pilih faktur yang valid dari daftar!");
+            isSubmitting = false;
+            btn.disabled = false;
+            btn.innerHTML = originalBtnText;
+            if (window.lucide) lucide.createIcons();
             return;
         }
 
-        const btn = form.querySelector('button[type="submit"]');
-        const originalBtnText = btn.innerHTML;
-
         try {
-            btn.innerHTML = "Sedang Mengirim Data...";
-            btn.disabled = true;
-
             const result = await dataService.submitPayment(payload);
             console.log("Upload Result:", result);
 
@@ -180,6 +187,7 @@ export const initPaymentForm = async () => {
             console.error("Submit error:", error);
             alert(`Gagal: ${error.message}`);
         } finally {
+            isSubmitting = false;
             btn.innerHTML = originalBtnText;
             btn.disabled = false;
             if (window.lucide) lucide.createIcons();
