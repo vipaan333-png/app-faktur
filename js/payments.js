@@ -1,6 +1,9 @@
 import { dataService } from './services.js';
 import { formatIDR } from './utils.js';
 
+let activeInvoices = [];
+let paymentFormBound = false;
+
 export const initPaymentForm = async () => {
     const form = document.getElementById('payment-form');
     const searchInput = document.getElementById('invoice-search-input');
@@ -15,7 +18,6 @@ export const initPaymentForm = async () => {
     let base64Image = "";
     let fileName = "";
 
-    let activeInvoices = [];
     let isSubmitting = false; // Prevent double submit (double-click / slow network)
 
     // Load active invoices from Google Sheets
@@ -26,7 +28,7 @@ export const initPaymentForm = async () => {
             console.error("Payment init error:", error);
         }
     };
-    loadInvoices();
+    await loadInvoices();
 
     const renderDropdown = (filter = "") => {
         const query = filter.toLowerCase();
@@ -74,6 +76,11 @@ export const initPaymentForm = async () => {
             dropdownContainer.classList.remove('active');
         }, 200);
     };
+
+    if (paymentFormBound) {
+        return;
+    }
+    paymentFormBound = true;
 
     // Helper: Compress Image
     const compressImage = async (file) => {

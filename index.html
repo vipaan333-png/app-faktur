@@ -30,8 +30,30 @@
     <!-- Top Progress Bar -->
     <div id="loading-bar"></div>
 
+    <!-- Global Login Gate -->
+    <div id="global-login-overlay" class="global-login-overlay">
+        <div class="global-login-card">
+            <h1>Login App-Faktur</h1>
+            <p class="subtitle">Masuk terlebih dahulu untuk menggunakan aplikasi</p>
+            <form id="global-login-form">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="global-username" placeholder="Masukkan username" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="global-password" placeholder="Masukkan password" autocomplete="current-password" required>
+                </div>
+                <p id="global-login-error" class="login-error hidden">Username atau password salah.</p>
+                <button type="submit" class="btn btn-primary btn-block">
+                    <i data-lucide="log-in"></i> Login
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Sidebar / Bottom Nav (Responsive) -->
-    <nav class="sidebar">
+    <nav id="main-sidebar" class="sidebar hidden">
         <div class="logo">
             <i data-lucide="zap" class="text-primary"></i>
             <span>App-Faktur</span>
@@ -49,11 +71,19 @@
                 <i data-lucide="credit-card"></i>
                 <span>Pembayaran</span>
             </li>
+            <li data-page="admin">
+                <i data-lucide="shield-check"></i>
+                <span>Admin</span>
+            </li>
         </ul>
+        <div class="session-box">
+            <small id="session-user-label">User: -</small>
+            <button type="button" id="btn-logout" class="btn btn-primary">Logout</button>
+        </div>
     </nav>
 
     <!-- Main Content -->
-    <main id="app">
+    <main id="app" class="hidden">
         <!-- Dashboard Page -->
         <section id="page-dashboard" class="page-section active">
             <header>
@@ -181,6 +211,83 @@
                         <i data-lucide="save"></i> Simpan Pembayaran
                     </button>
                 </form>
+            </div>
+        </section>
+
+        <!-- Admin Page -->
+        <section id="page-admin" class="page-section">
+            <header>
+                <h1>Admin Tagihan</h1>
+                <p class="subtitle">Pilih beberapa faktur lalu export ke sheet "tagihan"</p>
+            </header>
+
+            <div id="admin-login-card" class="form-card">
+                <form id="admin-login-form">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="admin-username" placeholder="Masukkan username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="admin-password" placeholder="Masukkan password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i data-lucide="lock"></i> Masuk Admin
+                    </button>
+                </form>
+            </div>
+
+            <div id="admin-panel" class="admin-panel hidden">
+                <div class="admin-toolbar-card">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tanggal</label>
+                            <input type="date" id="admin-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nama Kolektor</label>
+                            <input type="text" id="admin-collector" placeholder="Contoh: Andi" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-layout">
+                    <div class="admin-select-card">
+                        <div class="header-flex admin-header">
+                            <h3>Pilih No Faktur</h3>
+                            <button type="button" id="admin-refresh" class="btn btn-primary">
+                                <i data-lucide="refresh-cw"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="search-box admin-search">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="admin-invoice-search" placeholder="Cari no faktur atau outlet...">
+                        </div>
+                        <div id="admin-invoice-options" class="admin-options-list"></div>
+                    </div>
+
+                    <div class="table-card admin-table-card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>No Faktur</th>
+                                    <th>Nama Outlet</th>
+                                    <th>Sisa Piutang</th>
+                                    <th>Tunai</th>
+                                    <th>Transfer</th>
+                                    <th>Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-selected-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="admin-actions">
+                    <button type="button" id="admin-export-btn" class="btn btn-primary">
+                        <i data-lucide="upload"></i> Export ke Sheet Tagihan
+                    </button>
+                </div>
             </div>
         </section>
     </main>

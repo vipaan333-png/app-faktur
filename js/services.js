@@ -46,6 +46,21 @@ export const dataService = {
     async getActiveInvoices() {
         const all = await this.getInvoices();
         return all.filter(i => (i.sisa || 0) > 0);
+    },
+
+    async saveTagihanBatch(payload) {
+        const response = await fetch(CONFIG.GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'saveTagihanBatch',
+                ...payload
+            })
+        });
+
+        if (!response.ok) throw new Error("Gagal menghubungi Google Sheets");
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+        return result;
     }
 };
 

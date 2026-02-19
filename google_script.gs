@@ -7,6 +7,7 @@ const SPREADSHEET_ID = "1VCVp08S3Pk4Iq1k8tk9ZBH6oDDsTv9thMhhLSpO4Jj8";
 const SS = SpreadsheetApp.openById(SPREADSHEET_ID);
 const SHEET_INVOICES = SS.getSheetByName("invoices");
 const SHEET_PAYMENTS = SS.getSheetByName("payments");
+const SHEET_TAGIHAN = SS.getSheetByName("tagihan");
 const FOLDER_ID = ""; // Opsional: Masukkan ID Folder Drive jika ingin simpan di folder tertentu
 
 /**
@@ -37,8 +38,40 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  const lock = LockService.getScriptLock();
   try {
-    const data = JSON.parse(e.postData.contents);
+    lock.waitLock(10000);
+
+    const data = JSON.parse((e.postData && e.postData.contents) || "{}");
+    if (String(data.action || "") === "saveTagihanBatch") {
+      return saveTagihanBatch(data);
+    }
+
+    const noFaktur = String(data.no_faktur || "").trim();
+    const nominalBayar = parseAmount(data.nominal_bayar);
+
+    if (!SHEET_INVOICES) return createResponse({ error: "Sheet 'invoices' tidak ditemukan!" });
+    if (!SHEET_PAYMENTS) return createResponse({ error: "Sheet 'payments' tidak ditemukan!" });
+    if (!noFaktur) return createResponse({ error: "No faktur wajib diisi" });
+    if (!isFinite(nominalBayar) || nominalBayar <= 0) {
+      return createResponse({ error: "Nominal bayar tidak valid" });
+    }
+
+    // Server-side validation: faktur harus ada dan nominal tidak boleh melebihi sisa.
+    const summary = getInvoiceSummary();
+    const invoice = summary.find(inv => String(inv.no_faktur).trim() === noFaktur);
+    if (!invoice) {
+      return createResponse({ error: "Faktur tidak ditemukan: " + noFaktur });
+    }
+
+    const sisaSaatIni = parseAmount(invoice.sisa);
+    if (!isFinite(sisaSaatIni)) {
+      return createResponse({ error: "Data sisa tagihan tidak valid untuk faktur: " + noFaktur });
+    }
+    if (nominalBayar > sisaSaatIni) {
+      return createResponse({ error: "Nominal melebihi sisa tagihan. Sisa saat ini: " + sisaSaatIni });
+    }
+
     let fileUrl = "No Image";
 
     if (data.image_base64 && data.image_base64.length > 100) {
@@ -48,15 +81,11 @@ function doPost(e) {
         fileUrl = "Upload Error: " + uploadError.toString();
       }
     }
-    
-    // Pastikan Sheet ada
-    if (!SHEET_PAYMENTS) return createResponse({ error: "Sheet 'payments' tidak ditemukan!" });
-
     const row = [
-      data.no_faktur || "Empty",
+      noFaktur,
       data.tanggal_bayar ? new Date(data.tanggal_bayar) : new Date(),
       data.tipe || "N/A",
-      data.nominal_bayar || 0,
+      nominalBayar,
       data.keterangan_bank || "",
       new Date(), 
       fileUrl     
@@ -69,11 +98,84 @@ function doPost(e) {
       success: true, 
       msg: "Data berhasil masuk ke Spreadsheet ID: " + SPREADSHEET_ID,
       url: fileUrl,
+      nominal_bayar: nominalBayar,
+      sisa_sebelum_bayar: sisaSaatIni,
+      sisa_setelah_bayar: sisaSaatIni - nominalBayar,
       row_added: SHEET_PAYMENTS.getLastRow()
     });
   } catch (err) {
     return createResponse({ error: "doPost Error: " + err.toString() });
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (lockErr) {
+      // Ignore release errors when lock is not held.
+    }
   }
+}
+
+function saveTagihanBatch(data) {
+  if (!SHEET_TAGIHAN) return createResponse({ error: "Sheet 'tagihan' tidak ditemukan!" });
+  if (!SHEET_INVOICES) return createResponse({ error: "Sheet 'invoices' tidak ditemukan!" });
+
+  const tanggalRaw = String(data.tanggal || "").trim();
+  const kolektor = String(data.nama_kolektor || "").trim();
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  if (!tanggalRaw) return createResponse({ error: "Tanggal wajib diisi" });
+  if (!kolektor) return createResponse({ error: "Nama kolektor wajib diisi" });
+  if (items.length === 0) return createResponse({ error: "Minimal 1 faktur harus dipilih" });
+
+  const summary = getInvoiceSummary();
+  const invoiceMap = {};
+  summary.forEach(inv => {
+    invoiceMap[String(inv.no_faktur).trim()] = inv;
+  });
+
+  const createdAt = new Date();
+  const tanggal = new Date(tanggalRaw);
+  const rows = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i] || {};
+    const noFaktur = String(item.no_faktur || "").trim();
+    if (!noFaktur) return createResponse({ error: "No faktur kosong pada baris " + (i + 1) });
+
+    const invoice = invoiceMap[noFaktur];
+    if (!invoice) return createResponse({ error: "Faktur tidak ditemukan: " + noFaktur });
+
+    const sisaPiutang = parseAmount(invoice.sisa);
+    if (!isFinite(sisaPiutang)) {
+      return createResponse({ error: "Sisa piutang tidak valid untuk faktur: " + noFaktur });
+    }
+
+    const tunai = parseOptionalAmount(item.tunai);
+    const transfer = parseOptionalAmount(item.transfer);
+    if (!isFinite(tunai) || tunai < 0) return createResponse({ error: "Nilai tunai tidak valid pada faktur: " + noFaktur });
+    if (!isFinite(transfer) || transfer < 0) return createResponse({ error: "Nilai transfer tidak valid pada faktur: " + noFaktur });
+
+    rows.push([
+      tanggal,
+      kolektor,
+      noFaktur,
+      String(invoice.nama_outlet || item.nama_outlet || ""),
+      sisaPiutang,
+      tunai,
+      transfer,
+      String(item.keterangan || "").trim(),
+      createdAt
+    ]);
+  }
+
+  const startRow = SHEET_TAGIHAN.getLastRow() + 1;
+  SHEET_TAGIHAN.getRange(startRow, 1, rows.length, rows[0].length).setValues(rows);
+
+  return createResponse({
+    success: true,
+    msg: "Data tagihan berhasil disimpan",
+    saved_rows: rows.length,
+    start_row: startRow
+  });
 }
 
 function uploadToDrive(base64Data, fileName) {
@@ -149,4 +251,29 @@ function getSheetData(sheet) {
 
 function createResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function parseAmount(value) {
+  if (typeof value === "number") return isFinite(value) ? value : NaN;
+  if (value === null || value === undefined) return NaN;
+
+  let text = String(value).trim();
+  if (!text) return NaN;
+
+  text = text.replace(/rp/ig, "").replace(/\s/g, "");
+  if (!/^[0-9.,-]+$/.test(text)) return NaN;
+
+  const negative = text.startsWith("-");
+  text = text.replace(/-/g, "").replace(/[.,]/g, "");
+  if (!/^\d+$/.test(text)) return NaN;
+
+  const parsed = Number((negative ? "-" : "") + text);
+  return isFinite(parsed) ? parsed : NaN;
+}
+
+function parseOptionalAmount(value) {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "string" && String(value).trim() === "") return 0;
+  const parsed = parseAmount(value);
+  return isFinite(parsed) ? parsed : NaN;
 }
